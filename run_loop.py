@@ -26,7 +26,6 @@ def collect_results_as_dict(dataset):
     if not os.path.exists(results_folder):
         return {
             "dataset": dataset,
-            "results_folder": results_folder,
             "exists": False,
             "files": {}
         }
@@ -50,11 +49,34 @@ def collect_results_as_dict(dataset):
                         "content": base64.b64encode(f.read()).decode("ascii")
                     }
 
+    # Reorganize files into nested structure
+    nested_files = {
+        "Embeddings": {},
+        "Accepted_songs": {},
+        "Proportions": {},
+        "User": {},
+        "Other": {}
+    }
+    
+    for file_path, content in files_content.items():
+        file_name = os.path.basename(file_path)
+        
+        if "embedding" in file_name:
+            nested_files["Embeddings"][file_name] = content
+        elif "accepted_songs" in file_name:
+            nested_files["Accepted_songs"][file_name] = content
+        elif "proportions" in file_name or "train_proportions" in file_name:
+            nested_files["Proportions"][file_name] = content
+        elif "user_statistics" in file_name:
+            nested_files["User"][file_name] = content
+        else:
+            # Files that don't match any category go to Other
+            nested_files["Other"][file_name] = content
+
     return {
         "dataset": dataset,
-        "results_folder": results_folder,
         "exists": True,
-        "files": files_content
+        "files": nested_files
     }
 
 def call_script(n=30, dataset="example", model="BPR", choice_model="consume_all", config="recbole_config_default.yaml", artists_to_exclude=None):
