@@ -11,7 +11,7 @@ deploy:
   - echo "${SSH_HOST_KEY}" > "${HOME}/.ssh/known_hosts"
   - ls -la
   - ssh -i id_ed25519 ${SSH_USER_HOST} "mkdir -p ${LOCATION} && chown recvis:recvis ${LOCATION}"
-  - rsync -at --quiet --delete --delete-delay --delay-updates --chown=recvis:recvis -e 'ssh -i id_ed25519' api.py choice_models.py main.py evaluate.py recbole_wrapper.py run_loop.py environment.yml recbole_config_default.yaml helper_files saved experiments "${SSH_USER_HOST}:${LOCATION}"
+  - rsync -at --verbose --delete --delete-delay --delay-updates --chown=recvis:recvis -e 'ssh -i id_ed25519' *.py environment.yml recbole_config_default.yaml helper_files saved experiments "${SSH_USER_HOST}:${LOCATION}"
   - ssh ${SSH_USER_HOST} -i id_ed25519 "systemctl restart recvis_be"
   only:
   - main
