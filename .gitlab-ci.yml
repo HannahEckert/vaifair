@@ -15,4 +15,3 @@ deploy:
   - ssh ${SSH_USER_HOST} -i id_ed25519 "systemctl restart recvis_be"
   only:
   - main
-  git_strategy: none
