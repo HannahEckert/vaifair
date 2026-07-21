@@ -77,19 +77,22 @@ def country_centric(recommendations: pd.DataFrame, tracks: pd.DataFrame, country
       0.5 is balanced and identical to regular 'rank_based'
       1 means all items *execpt* those from country are considered
     """
+    # Ensure tracks has a numeric index matching item_ids
+    tracks_reset = tracks.reset_index(drop=True)
+    
     acc_list = []
     for user_id in tqdm(recommendations['user_id'].unique(), desc='Applying choice model'):
         recs = recommendations.loc[recommendations['user_id'] == user_id]
-        # Item_id in recs
-        from_country = tracks.iloc[recs['item_id']]['country'] == country
+        # Get countries for each recommended item using item_id (which is row index in tracks)
+        from_country = tracks_reset.loc[recs['item_id'].values, 'country'] == country
         # Chance of 1 for songs from the country, chance of non_country_chance for songs not from the country
 
         ranked_p_list = np.array([ranked_prob(i, 0.1) for i in range(1, len(recs) + 1)])
         if invert:
             # Inverted mode: instead of focusing on country songs, focus on non-country songs
-            country_p_mod = np.array([non_country_chance if x else 1 for x in from_country])
+            country_p_mod = np.array([non_country_chance if x else 1 for x in from_country.values])
         else:
-            country_p_mod = np.array([1 if x else non_country_chance for x in from_country])
+            country_p_mod = np.array([1 if x else non_country_chance for x in from_country.values])
 
         p_list = ranked_p_list * country_p_mod
 
@@ -118,8 +121,6 @@ def accept_new_recommendations(choice_model: str,
         recommendations = choice_model_rank_based(recommendations)
     elif choice_model == 'us_centric':
         recommendations = country_centric(recommendations, tracks, country='US', non_country_chance=0.0)
-    elif choice_model == 'non_us_centric':
-        recommendations = country_centric(recommendations, tracks, country='US', non_country_chance=0.0, invert=True)
     elif choice_model == 'consume_all':
         recommendations = choice_model_consume_all(recommendations)
     else:

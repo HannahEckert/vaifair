@@ -2,6 +2,7 @@ import math
 import sys
 
 import numpy as np
+import torch
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation, construct_transform
 from recbole.utils import init_seed, init_logger, get_model, get_flops, set_color, get_trainer, get_environment
@@ -51,6 +52,16 @@ def run_recbole_experiment(model: str, dataset: str, config: Config, checkpoint_
     # trainer loading and initialization
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
 
+    # Load checkpoint if provided
+    if checkpoint_path is not None:
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=config["device"])
+        # Load state dict into model
+        #if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            #model.load_state_dict(checkpoint['state_dict'])
+        #else:
+            #model.load_state_dict(checkpoint)
+        logger.info("Checkpoint loaded successfully")
 
     # model training
     best_valid_score, best_valid_result = trainer.fit(

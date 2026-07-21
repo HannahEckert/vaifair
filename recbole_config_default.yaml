@@ -14,11 +14,11 @@ embedding_size: 256
 MAX_ITEM_LIST_LENGTH: 500
 
 # Training and evaluation config
-epochs: 15 # We do early stopping, in WS23/24 experiments this was never reached
+epochs: 25 # We do early stopping, in WS23/24 experiments this was never reached
 train_batch_size: 2048
 eval_batch_size: 2048 #1048576 
 # Do Validation after every n epochs
-eval_step: 21
+eval_step: 100
 stopping_step: 500 # Stop if validation metric does not improve for 500 epochs (no early stopping)
 train_neg_sample_args:
     distribution: uniform

@@ -2,7 +2,12 @@
 
 ## Requirements
 
-Find requirements in environment.yaml
+conda create -n test_env python=3.10 -y
+
+conda activate test_env
+
+pip install -r requirements.txt
+
 
 ## Getting Started
 
@@ -14,78 +19,59 @@ python -m uvicorn api:app --host 0.0.0.0 --port 8000
 
 ## API Documentation
 
-### Request
+### POST `/runs` - Start a Run
 
-The API waits for a dictionary of the form:
-
-```json
-{
-    "n": 2, 
-    "dataset": "babyLFM5k", 
-    "model": "BPR", 
-    "choice_model": "consume_all", 
-    "config": "recbole_config_default.yaml", 
-    "artists_to_exclude": null 
-}
-```
-
-**Parameters:**
-- `n`: number iterations to run
-- `dataset`: dataset (usually don't change that)
-- `model`: RecBole model to use
-- `choice_model`: choice model to use
-- `config`: config file for additional training parameters
-- `artists_to_exclude`: artists to exclude from recommendations
-
-### Response
-
-The API returns a dictionary of the form:
+Send a POST request with parameters:
 
 ```json
 {
+    "n": 1,
     "dataset": "babyLFM5k",
-    "results_folder": "experiments/babyLFM5k/results",
-    "exists": true,
-    "files": {
-        "Embeddings": {
-            "iteration_1_user_embedding.pt": {...},
-            "iteration_1_item_embedding.pt": {...},
-            "iteration_2_user_embedding.pt": {...}
-        },
-        "Accepted_songs": {
-            "accepted_songs_iteration_1.csv": {...},
-            "accepted_songs_iteration_2.csv": {...}
-        },
-        "Proportions": {
-            "country_proportions_iteration_1.csv": {...}, #country proportions for each user (e.g. what percentage of male did user i consume in iteration 1)
-            "gender_proportions_iteration_1.csv": {...}, #gender proportions for each user
-            "country_proportions_iteration_2.csv": {...},
-            "user_country_train_proportions.csv": {...}, 
-            "user_gender_train_proportions.csv": {...}
-        },
-        "User": {
-            "user_statistics.csv": {...}
-        }
-    }
+    "model": "BPR",
+    "choice_model": "consume_all",
+    "config": "recbole_config_default.yaml",
+    "artists_to_exclude": null
 }
 ```
 
-**Response Fields:**
-- `dataset`: the dataset name
-- `results_folder`: path to the results folder
-- `exists`: whether results folder exists
-- `files`: nested structure of result files
-
-#### File Entry Format
-
-Each file entry contains:
+Returns immediately with a job ID:
 
 ```json
 {
-    "content_type": "text or base64",
-    "content": "file contents as string"
+    "job_id": "uuid-string",
+    "status": "queued",
+    "status_url": "/runs/uuid-string"
 }
 ```
 
-- `content_type`: "text" for readable files, "base64" for binary files
-- `content`: file contents as string
+### GET `/runs/{job_id}` - Check Status
+
+Poll this endpoint to check progress. Returns current `status` ("queued", "running", "completed", or "failed"), logs, and results when done.
+
+### Health Check
+
+`GET /` returns `{"status": "ok", "message": "..."}`
+
+### Example
+
+Start a run with curl:
+
+```bash
+curl -X POST http://localhost:8000/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "n": 1,
+    "dataset": "babyLFM5k",
+    "model": "BPR",
+    "choice_model": "consume_all",
+    "config": "recbole_config_default.yaml"
+  }'
+```
+
+Check status:
+
+```bash
+curl http://localhost:8000/runs/{job_id}
+```
+
+Replace `{job_id}` with the ID from the POST response.

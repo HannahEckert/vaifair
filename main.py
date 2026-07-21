@@ -193,9 +193,17 @@ def do_single_loop(
 
     config = Config(model=model, dataset='dataset', config_file_list=[config])
     
+    # Load checkpoint from previous iteration if not the first iteration
+    checkpoint_path = None
+    if iteration > 1:
+        checkpoint_path = str(EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration - 1}_checkpoint.pth')
+        if not Path(checkpoint_path).exists():
+            print(f'Warning: Previous checkpoint not found at {checkpoint_path}')
+            checkpoint_path = None
+        else:
+            print(f'Loading checkpoint from previous iteration: {checkpoint_path}')
 
-
-    run_recbole_experiment(model=model, dataset=dataset_name, config=config)
+    run_recbole_experiment(model=model, dataset=dataset_name, config=config, checkpoint_path=checkpoint_path)
 
 
     # Attempt to make sure the model is garbage collected and doesn't leak memory
