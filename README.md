@@ -57,7 +57,7 @@ Poll this endpoint to check progress. Returns current `status` ("queued", "runni
 Start a run with curl:
 
 ```bash
-curl -X POST http://localhost:8000/runs \
+curl -X POST https://vista-be.test.cp.jku.at/runs \
   -H "Content-Type: application/json" \
   -d '{
     "n": 1,
@@ -71,7 +71,7 @@ curl -X POST http://localhost:8000/runs \
 Check status:
 
 ```bash
-curl http://localhost:8000/runs/{job_id}
+curl https://vista-be.test.cp.jku.at/runs/{job_id}
 ```
 
 Replace `{job_id}` with the ID from the POST response.
