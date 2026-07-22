@@ -9,7 +9,7 @@ deploy:
   - chmod 700 id_ed25519
   - mkdir "${HOME}/.ssh"
   - echo "${SSH_HOST_KEY}" > "${HOME}/.ssh/known_hosts"
-  - rsync -at --quiet --delete --delete-delay --delay-updates --chown=recvis:recvis -e 'ssh -i id_ed25519' *.py environment.yml recbole_config_default.yaml helper_files/ saved/ experiments/ "${SSH_USER_HOST}:${LOCATION}"
+  - rsync -at --quiet --delete --delete-delay --delay-updates --chown=recvis:recvis -e 'ssh -i id_ed25519' *.py recbole_config_default.yaml helper_files saved experiments "${SSH_USER_HOST}:${LOCATION}"
   - ssh ${SSH_USER_HOST} -i id_ed25519 "sudo systemctl restart recvis_be"
   only:
   - main
