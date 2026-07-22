@@ -14,7 +14,7 @@ embedding_size: 256
 MAX_ITEM_LIST_LENGTH: 500
 
 # Training and evaluation config
-epochs: 25 # We do early stopping, in WS23/24 experiments this was never reached
+epochs: 20 # We do early stopping, in WS23/24 experiments this was never reached
 train_batch_size: 2048
 eval_batch_size: 2048 #1048576 
 # Do Validation after every n epochs

@@ -13,10 +13,21 @@ from pydantic import BaseModel, Field
 
 from run_loop import collect_results_as_dict
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 app = FastAPI(
     title="Recommendation Experiment API",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://vista.test.cp.jku.at"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

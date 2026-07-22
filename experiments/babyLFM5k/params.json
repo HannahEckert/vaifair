@@ -2,6 +2,6 @@
   "dataset_name": "babyLFM5k",
   "iteration": 1,
   "model": "BPR",
-  "choice_model": "rank_based",
+  "choice_model": "consume_all",
   "config": "recbole_config_default.yaml"
 }
