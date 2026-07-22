@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from run_loop import collect_results_as_dict
@@ -268,3 +269,10 @@ def get_run(job_id: str) -> dict:
             )
 
         return dict(job)
+
+
+# Mount the experiments folder as static files
+# This allows the frontend to access files from /experiments/* endpoints
+experiments_dir = PROJECT_DIR / "experiments"
+if experiments_dir.exists():
+    app.mount("/experiments", StaticFiles(directory=str(experiments_dir)), name="experiments")
