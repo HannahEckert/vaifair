@@ -17,6 +17,12 @@ def parse_args():
                         help='Path to the Recbole config file')
     parser.add_argument('-a', '--artists-to-exclude', type=str, nargs='+', default=None,
                         help='List of artists to exclude from the recommendations. If None, no artists are excluded')
+    parser.add_argument("--PP", action="store_true", help="Run post-processing after the recommendation loop")
+    parser.add_argument("--PP-dimension", type=str, default="country", help="Dimension to consider for re-ranking (country or gender)")
+    parser.add_argument("--PP-l", type=float, default=0.75, help="Trade-off parameter for post-processing")
+    parser.add_argument("--PP-target-distribution", type=str, default="interactions", help="Target distribution for post-processing")
+    parser.add_argument("--PP-seed", type=int, default=42, help="Random seed for shuffling user order in post-processing")
+
     return parser.parse_args()
 
 
@@ -79,7 +85,9 @@ def collect_results_as_dict(dataset):
         "files": nested_files
     }
 
-def call_script(n=30, dataset="example", model="BPR", choice_model="consume_all", config="recbole_config_default.yaml", artists_to_exclude=None):
+def call_script(n=30, dataset="example", model="BPR", choice_model="consume_all", config="recbole_config_default.yaml", 
+                artists_to_exclude=None, PP=False, PP_dimension="country", PP_l=0.25,
+                PP_target_distribution="interactions", PP_seed=42):
     for i in range(1, n + 1):
         command = [
             sys.executable, "main.py", dataset, str(i),
@@ -90,6 +98,12 @@ def call_script(n=30, dataset="example", model="BPR", choice_model="consume_all"
         ]
         if artists_to_exclude is not None:
             command.extend(["--artists-to-exclude"] + artists_to_exclude)
+        if PP:
+            command.append("--PP")
+            command.extend(["--PP-dimension", PP_dimension])
+            command.extend(["--PP-l", str(PP_l)])
+            command.extend(["--PP-target-distribution", PP_target_distribution])
+            command.extend(["--PP-seed", str(PP_seed)])
         result = subprocess.run(command, check=True)
 
         if result.returncode == 0:
@@ -117,4 +131,9 @@ if __name__ == "__main__":
         choice_model=args.choice_model,
         config=args.config,
         artists_to_exclude=args.artists_to_exclude,
+        PP=args.PP,
+        PP_dimension=args.PP_dimension,
+        PP_l=args.PP_l,
+        PP_target_distribution=args.PP_target_distribution,
+        PP_seed=args.PP_seed,
     )

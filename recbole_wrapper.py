@@ -137,26 +137,26 @@ def get_recbole_scores(model, dataset, test_data, config: Config, batch_size: in
 
     return scores
 
-def get_recbole_ndcg_per_user(model, dataset, valid_data, config: Config, k: int = 10, batch_size: int = 32):
+def get_recbole_eval_scores(model, dataset, valid_data, config: Config, batch_size: int = 32):
     """
-    Computes per-user NDCG@k exactly as RecBole's internal evaluator does.
+    Computes scores for all users/items using valid_data for RecBole's internal masking,
+    i.e. only training interactions are masked out — validation items remain visible/scoreable.
 
-    full_sort_scores must be called with valid_data (not test_data) so that
-    RecBole only masks training items internally — leaving validation items
-    available for ranking, just like the internal validation evaluator does.
-
-    Returns a dict mapping original user_id -> ndcg@k value.
+    Use this (instead of get_recbole_scores(), which masks with test_data and therefore
+    excludes validation items entirely) whenever validation items need to be rankable —
+    e.g. to build a top-k ranking for evaluating NDCG@k against the validation set, with or
+    without post-processing/re-ranking applied afterwards.
     """
     user_ids, item_ids = _get_ids(dataset)
 
     scores = np.empty((len(user_ids), len(item_ids)), dtype=np.float32)
 
-    for i in trange(math.ceil(len(user_ids) / batch_size), desc=f'Calculating NDCG scores',
+    for i in trange(math.ceil(len(user_ids) / batch_size), desc=f'Calculating Evaluation Scores',
                     dynamic_ncols=True, smoothing=0):
         start = i * batch_size
         end = min(len(user_ids), (i + 1) * batch_size)
         # Use valid_data so RecBole only masks training items before scoring,
-        # matching its internal validation evaluation pool.
+        # leaving validation items available for ranking.
         batch_scores = full_sort_scores(user_ids[start:end], model, valid_data,
                                         device=config['device']).cpu().numpy().astype(np.float32)
         scores[start:end] = batch_scores[:, item_ids]
@@ -171,24 +171,97 @@ def get_recbole_ndcg_per_user(model, dataset, valid_data, config: Config, k: int
             item_id_mapping[i] = -1  # Item not present in training data
     scores = scores[:, item_id_mapping]
 
-    # Build reverse mappings: RecBole internal ID -> original ID
+    return scores
+
+
+def get_recbole_ndcg_per_user(model, dataset, valid_data, config: Config, k: int = 10, batch_size: int = 32):
+    """
+    Computes per-user NDCG@k exactly as RecBole's internal evaluator does, ranking directly
+    by the model's raw scores (no post-processing/re-ranking applied).
+
+    Returns a dict mapping original user_id -> ndcg@k value.
+    """
+    scores = get_recbole_eval_scores(model, dataset, valid_data, config, batch_size)
+
+    # Row i in `scores` corresponds to RecBole internal user id i + 1 (uid2positive_item[0] is [PAD])
     recbole_to_orig_user = {v: int(key) for key, v in dataset.field2token_id['user_id'].items() if key != '[PAD]'}
-    recbole_to_orig_item = {v: int(key) for key, v in dataset.field2token_id['item_id'].items() if key != '[PAD]'}
+    valid_items_per_user = _get_valid_items_per_user(dataset, valid_data)
 
     ndcg_per_user = {}
     for i, valid_items_tensor in enumerate(valid_data.uid2positive_item[1:]):
-        recbole_uid = i + 1  # uid2positive_item[0] is [PAD]
+        recbole_uid = i + 1
         orig_uid = recbole_to_orig_user[recbole_uid]
 
-        valid_items_orig = set(recbole_to_orig_item[iid.item()] for iid in valid_items_tensor)
+        valid_items_orig = valid_items_per_user[orig_uid]
         if not valid_items_orig:
             continue
 
         top_k_items = np.argsort(-scores[i])[:k]
-
-        dcg = sum(1.0 / np.log2(rank + 2) for rank, item in enumerate(top_k_items) if item in valid_items_orig)
-        ideal_len = min(len(valid_items_orig), k)
-        idcg = sum(1.0 / np.log2(rank + 2) for rank in range(ideal_len))
-        ndcg_per_user[orig_uid] = dcg / idcg if idcg > 0 else 0.0
+        ndcg_per_user[orig_uid] = _compute_ndcg(top_k_items, valid_items_orig, k)
 
     return ndcg_per_user
+
+
+def _get_valid_items_per_user(dataset, valid_data):
+    """
+    Builds a dict mapping original user_id -> set of original item_ids in the
+    validation set (RecBole's ground truth positive items for that user).
+    """
+    recbole_to_orig_user = {v: int(key) for key, v in dataset.field2token_id['user_id'].items() if key != '[PAD]'}
+    recbole_to_orig_item = {v: int(key) for key, v in dataset.field2token_id['item_id'].items() if key != '[PAD]'}
+
+    valid_items_per_user = {}
+    for i, valid_items_tensor in enumerate(valid_data.uid2positive_item[1:]):
+        recbole_uid = i + 1  # uid2positive_item[0] is [PAD]
+        orig_uid = recbole_to_orig_user[recbole_uid]
+        valid_items_per_user[orig_uid] = set(recbole_to_orig_item[iid.item()] for iid in valid_items_tensor)
+
+    return valid_items_per_user
+
+
+def _compute_ndcg(top_k_items, valid_items_orig, k):
+    """Computes NDCG@k for a single user given their ranked top-k items (original IDs, ordered by rank)
+    and the set of ground-truth original item IDs."""
+    dcg = sum(1.0 / np.log2(rank + 2) for rank, item in enumerate(top_k_items[:k]) if item in valid_items_orig)
+    ideal_len = min(len(valid_items_orig), k)
+    idcg = sum(1.0 / np.log2(rank + 2) for rank in range(ideal_len))
+    return dcg / idcg if idcg > 0 else 0.0
+
+
+def get_ndcg_from_top_k_df(top_k_df, dataset, valid_data, k: int = 10):
+    """
+    Computes per-user NDCG@k from an already-computed, ranked `top_k_df` instead of
+    recomputing the ranking from raw model scores.
+
+    IMPORTANT: `top_k_df` must be built from scores obtained via get_recbole_eval_scores()
+    (masked with valid_data, so validation items remain visible/rankable) — NOT from
+    get_recbole_scores() (masked with test_data), which excludes validation items entirely
+    and would make NDCG always 0. This should be used instead of get_recbole_ndcg_per_user()
+    whenever the final ranking differs from a plain argsort of those eval scores (e.g. when
+    post-processing re-ranks the candidates), so that NDCG reflects what was actually ranked.
+
+    :param top_k_df: DataFrame with columns 'user_id', 'item_id' and 'rank' (original IDs,
+                      one row per recommended item, 'rank' starting at 1 = best), built from
+                      get_recbole_eval_scores()-derived candidates.
+    :param dataset: RecBole dataset object (used to map validation items back to original IDs).
+    :param valid_data: RecBole validation data (used as ground truth), matching the pool used
+                        by get_recbole_eval_scores().
+    :param k: number of top items to consider per user.
+    :returns: dict mapping original user_id -> ndcg@k value.
+    """
+    valid_items_per_user = _get_valid_items_per_user(dataset, valid_data)
+
+    # Build ranked item lists per user from top_k_df, ordered by rank
+    top_k_df = top_k_df.sort_values(['user_id', 'rank'])
+    ranked_items_per_user = top_k_df.groupby('user_id')['item_id'].apply(list).to_dict()
+
+    ndcg_per_user = {}
+    for orig_uid, valid_items_orig in valid_items_per_user.items():
+        if not valid_items_orig:
+            continue
+
+        top_k_items = ranked_items_per_user.get(orig_uid, [])
+        ndcg_per_user[orig_uid] = _compute_ndcg(top_k_items, valid_items_orig, k)
+
+    return ndcg_per_user
+

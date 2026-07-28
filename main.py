@@ -13,7 +13,8 @@ from recbole.quick_start import load_data_and_model
 from tqdm import tqdm
 
 from choice_models import accept_new_recommendations
-from recbole_wrapper import run_recbole_experiment, get_recbole_scores, get_recbole_ndcg_per_user
+from recbole_wrapper import run_recbole_experiment, get_recbole_scores, get_recbole_eval_scores, get_recbole_ndcg_per_user, get_ndcg_from_top_k_df
+from post_processing import post_processing
 
 import torch
 
@@ -157,13 +158,18 @@ def compute_top_k_scores(scores, k=10, orig_user_ids=None):
      help="List of artists to exclude from the recommendations. If None, no artists are excluded")
 @arg('--clean', action=argparse.BooleanOptionalAction,
      help='If True, deletes all files in the data/ output/ and logs/ folders that may be present')
+@arg("--PP", action=argparse.BooleanOptionalAction, help="If True, calculates top100 for PP")
+@arg("--PP-dimension", type=str, default="country", help="Dimension to consider for re-ranking (country or gender)")
+@arg("--PP-l", type=float, default=0.25, help="Trade-off parameter for post-processing")
+@arg("--PP-target-distribution", type=str, default="interactions", help="Target distribution for post-processing")
+@arg("--PP-seed", type=int, default=42, help="Random seed for shuffling user order in post-processing")
 
 
 def do_single_loop(
         dataset_name, iteration, model='BPR', choice_model='random',
         config='recbole_config_default.yaml',
         k=10, artists_to_exclude=None,
-        clean=False):
+        clean=False, PP=False, PP_dimension="country", PP_l=0.25, PP_target_distribution="interactions", PP_seed=42):
     """
     Executes a single iteration loop consisting of training, evaluation and the
     addition of new interactions by a choice model. This file only does a single loop at a time and needs to be called as a subprocess.
@@ -220,12 +226,44 @@ def do_single_loop(
     orig_user_ids = [int(k) for k in dataset.field2token_id['user_id'].keys() if k != '[PAD]']
 
     # Obtain top k scores and save them for later analysis
-    top_k_df = compute_top_k_scores(scores, k=k, orig_user_ids=orig_user_ids)
-    top_k_df.to_csv(
-        EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_top_k.tsv', header=True,
-        sep='\t', index=False)
-    # Compute and save per-user NDCG@k, matching RecBole's internal evaluation pool
-    ndcg_per_user = get_recbole_ndcg_per_user(model, dataset, valid_data, config, k=k)
+    if PP:
+        top_k_df = compute_top_k_scores(scores, k=100, orig_user_ids=orig_user_ids)
+        #top_k_df.to_csv(
+            #EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_top_100.tsv', header=True,
+            #sep='\t', index=False)
+
+        top_k_df = post_processing(top_k=top_k_df, dataset=dataset_name, dimension=PP_dimension, l=PP_l, target_distribution=PP_target_distribution, seed=PP_seed)
+        # post_processing() merges in extra columns (artist, country, gender, track_id, normalized_score)
+        # from tracks.tsv. Trim back down to the standard schema so iteration_{i}_top_k.tsv stays
+        # consistent whether PP is used or not -- downstream code (e.g. evaluate.py) merges this file
+        # with tracks itself and would otherwise get artist_x/artist_y column name clashes.
+        top_k_df = top_k_df[['user_id', 'item_id', 'rank', 'score']]
+        top_k_df.to_csv(
+                    EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_top_k.tsv', header=True,
+                    sep='\t', index=False)
+
+    else:
+        top_k_df = compute_top_k_scores(scores, k=k, orig_user_ids=orig_user_ids)
+        top_k_df.to_csv(
+            EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_top_k.tsv', header=True,
+            sep='\t', index=False)
+
+    # Compute and save per-user NDCG@k, matching RecBole's internal evaluation pool.
+    # NDCG cannot be computed from `top_k_df` above: that ranking is built from
+    # get_recbole_scores() (masked with test_data), which excludes ALL previously-seen
+    # items -- including validation items -- so validation items could never appear in it
+    # and NDCG would always be 0. Instead, use get_recbole_eval_scores() (masked with
+    # valid_data only), which leaves validation items visible/rankable. When PP is enabled,
+    # that eval ranking must go through the same post-processing re-ranking before scoring,
+    # so NDCG reflects what would actually be recommended.
+    if PP:
+        eval_scores = get_recbole_eval_scores(model, dataset, valid_data, config)
+        eval_top_k_df = compute_top_k_scores(eval_scores, k=100, orig_user_ids=orig_user_ids)
+        eval_top_k_df = post_processing(top_k=eval_top_k_df, dataset=dataset_name, dimension=PP_dimension,
+                                        l=PP_l, target_distribution=PP_target_distribution, seed=PP_seed)
+        ndcg_per_user = get_ndcg_from_top_k_df(eval_top_k_df, dataset, valid_data, k=k)
+    else:
+        ndcg_per_user = get_recbole_ndcg_per_user(model, dataset, valid_data, config, k=k)
     ndcg_df = pd.DataFrame([{'user_id': uid, f'ndcg@{k}': val} for uid, val in ndcg_per_user.items()])
     ndcg_df.to_csv(
         EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_ndcg_per_user.tsv',
