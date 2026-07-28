@@ -73,6 +73,31 @@ class RunRequest(BaseModel):
 
     artists_to_exclude: list[str] | None = None
 
+    pp: bool = Field(
+        default=False,
+        description="Whether to apply fairness-aware post-processing re-ranking",
+    )
+
+    pp_dimension: str = Field(
+        default="country",
+        description="Dimension to consider for re-ranking ('country' or 'gender')",
+    )
+
+    pp_l: float = Field(
+        default=0.25,
+        description="Trade-off parameter between relevance and fairness",
+    )
+
+    pp_target_distribution: str = Field(
+        default="interactions",
+        description="Target distribution for post-processing ('interactions' or 'catalog')",
+    )
+
+    pp_seed: int = Field(
+        default=42,
+        description="Random seed for shuffling user order in post-processing",
+    )
+
 
 class RunStartedResponse(BaseModel):
     job_id: str
@@ -150,6 +175,13 @@ def execute_run(job_id: str, request: RunRequest) -> None:
     if request.artists_to_exclude:
         command.append("--artists-to-exclude")
         command.extend(request.artists_to_exclude)
+
+    if request.pp:
+        command.append("--PP")
+        command.extend(["--PP-dimension", request.pp_dimension])
+        command.extend(["--PP-l", str(request.pp_l)])
+        command.extend(["--PP-target-distribution", request.pp_target_distribution])
+        command.extend(["--PP-seed", str(request.pp_seed)])
 
     try:
         completed_process = subprocess.run(

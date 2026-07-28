@@ -17,19 +17,6 @@ pip install -r requirements.txt
 python -m uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
-### Post-Processing (PP)
-
-To apply fairness-aware re-ranking, pass `--PP` to `run_loop.py`:
-
-```bash
-python run_loop.py --dataset babyLFM5k --PP --PP-dimension country --PP-l 0.25 --PP-target-distribution interactions --PP-seed 42
-```
-
-- `--PP-dimension`: `country` or `gender`
-- `--PP-l`: trade-off parameter between relevance and fairness
-- `--PP-target-distribution`: `interactions` or `catalog`
-- `--PP-seed`: random seed for shuffling user order
-
 ## API Documentation
 
 ### POST `/runs` - Start a Run
@@ -43,9 +30,16 @@ Send a POST request with parameters:
     "model": "BPR",
     "choice_model": "consume_all",
     "config": "recbole_config_default.yaml",
-    "artists_to_exclude": null
+    "artists_to_exclude": null,
+    "pp": false,
+    "pp_dimension": "country",
+    "pp_l": 0.25,
+    "pp_target_distribution": "interactions",
+    "pp_seed": 42
 }
 ```
+
+`pp` enables fairness-aware post-processing re-ranking. `pp_dimension` is `country` or `gender`; `pp_l` is the trade-off parameter between relevance and fairness; `pp_target_distribution` is `interactions` or `catalog`; `pp_seed` seeds the user-order shuffle.
 
 Returns immediately with a job ID:
 
