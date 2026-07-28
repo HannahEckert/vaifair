@@ -9,11 +9,11 @@ def evaluate(experiments_folder, experiment_name):
 
     # for RG1
 
-    tracks = pd.read_csv(f'{experiments_folder}/{experiment_name}/input/tracks.tsv', sep="\t", header=None, names=["track_id","artist","title","country","gender"])
+    tracks = pd.read_csv(f'{experiments_folder}/{experiment_name}/input/tracks.tsv', sep="\t", header=None, names=["track_id","artist","title","country","gender","language","popularity_bin"])
     dataset = pd.read_csv(f'{experiments_folder}/{experiment_name}/input/dataset.inter', sep="\t", header=0)
     demographics = pd.read_csv(f'{experiments_folder}/{experiment_name}/input/demographics.tsv', sep="\t", header=None, names=["country","age","gender","user_id"])
 
-    artist_exposures = tracks[["artist","country","gender"]].drop_duplicates()
+    artist_exposures = tracks[["artist","country","gender","language","popularity_bin"]].drop_duplicates()
 
     artists_popularity = tracks.merge(dataset, left_on="track_id", right_on="item_id:token")["artist"].value_counts()/len(dataset)
 
@@ -41,7 +41,7 @@ def evaluate(experiments_folder, experiment_name):
         accepted_songs = accepted_songs.merge(demographics, left_on="user_id", right_on="user_id", how="left")
         accepted_songs.rename(columns={"country":"user_country","gender":"user_gender","age":"user_age"}, inplace=True)
 
-        accepted_songs = accepted_songs.merge(tracks[["artist","country","gender"]].drop_duplicates(), left_on="artist", right_on="artist", how="left").rename(columns={"country":"artist_country","gender":"artist_gender"})
+        accepted_songs = accepted_songs.merge(tracks[["artist","country","gender","language","popularity_bin"]].drop_duplicates(), left_on="artist", right_on="artist", how="left").rename(columns={"country":"artist_country","gender":"artist_gender"})
 
         accepted_songs.to_csv(f"{experiments_folder}/{experiment_name}/results/accepted_songs_iteration_{i}.csv", index=False)
 

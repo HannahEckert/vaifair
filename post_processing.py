@@ -9,7 +9,7 @@ import os
 def prepare_post_processing(top_k, tracks_path, dataset_path):
 
     #top_k = pd.read_csv(top_k_path, sep='\t')
-    tracks = pd.read_csv(tracks_path, sep="\t", header=None, names=["track_id","artist","title","country","gender"])
+    tracks = pd.read_csv(tracks_path, sep="\t", header=None, names=["track_id","artist","title","country","gender","language","popularity_bin"])
     dataset = pd.read_csv(dataset_path, sep="\t", header=0)
 
     #normalize scores by user
@@ -18,13 +18,7 @@ def prepare_post_processing(top_k, tracks_path, dataset_path):
     
 
     item_artist_matching = tracks[["track_id", "artist"]].drop_duplicates()
-    # tracks.tsv has one row per track, so the same artist can appear many times.
-    # Dedupe to one row per artist before joining on artist name, otherwise the
-    # merge below is many-to-many and multiplies each interaction/candidate row
-    # once per track that artist has -- silently inflating row counts (and
-    # skewing any distribution computed from the result, e.g. the "interactions"
-    # target distribution in mitigation_continent/baseline_marras).
-    artist_country_gender = tracks[["artist", "country", "gender"]].drop_duplicates(subset="artist")
+    artist_country_gender = tracks[["artist", "country", "gender", "language", "popularity_bin"]].drop_duplicates(subset="artist")
 
     top_k = top_k.merge(item_artist_matching, left_on="item_id", right_on="track_id", how="left")
 
@@ -134,6 +128,8 @@ def mitigation_continent(tracks, top_k, dataset, l=1.0, target_distribution="int
     :param k: top-k cutoff (default 10)
     """
 
+    ## I think there are bugs!!!!!!!!!!!!!###############
+
     def get_group(row):
         """Return this row's value for `dimension`, or None if missing."""
         val = row.get(dimension)
@@ -197,12 +193,6 @@ def mitigation_continent(tracks, top_k, dataset, l=1.0, target_distribution="int
             if group_balance.get(grp, 0) < 0:   # disadvantaged → candidate to insert
                 in_cands.append(row)
 
-        # out_cands is sorted ascending by relevance (cheapest-to-remove first);
-        # in_cands is sorted descending by relevance (most-valuable-to-add first).
-        # Pair them in the same walking direction so the cheapest advantaged item
-        # to sacrifice is matched with the most valuable disadvantaged item to gain
-        # (i.e. the lowest-loss swaps first), instead of pairing the best in-top-k
-        # item away first.
         i_in, i_out = 0, 0
         while i_in < len(in_cands) and i_out < len(out_cands):
             item_in  = in_cands[i_in]

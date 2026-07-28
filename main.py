@@ -63,7 +63,7 @@ def prepare_run(dataset_name: str, iteration: int, clean=False, artists_to_exclu
             raise FileNotFoundError(f'Dataset invalid: input/dataset.inter')
         
         if artists_to_exclude is not None:
-            tracks = pd.read_csv(tracks_file, sep="\t", header=None, names=["track_id","artist","title","country","gender"])
+            tracks = pd.read_csv(tracks_file, sep="\t", header=None, names=["track_id","artist","title","country","gender","language","popularity_bin"])
             dataset = pd.read_csv(input_inter_file, sep="\t", header=0)
             ids_to_exclude = tracks[tracks['artist'].isin(artists_to_exclude)]['track_id'].tolist()
             dataset_filtered = dataset[~dataset['item_id:token'].isin(ids_to_exclude)]
@@ -185,8 +185,6 @@ def do_single_loop(
 
 
     if iteration == 1:
-        # Write a small json file containing the parameters with which this command was called.
-        # this can be accessed by our plotting functions later
         call_params = {
             'dataset_name': dataset_name,
             'iteration': iteration,
@@ -233,10 +231,6 @@ def do_single_loop(
             #sep='\t', index=False)
 
         top_k_df = post_processing(top_k=top_k_df, dataset=dataset_name, dimension=PP_dimension, l=PP_l, target_distribution=PP_target_distribution, seed=PP_seed)
-        # post_processing() merges in extra columns (artist, country, gender, track_id, normalized_score)
-        # from tracks.tsv. Trim back down to the standard schema so iteration_{i}_top_k.tsv stays
-        # consistent whether PP is used or not -- downstream code (e.g. evaluate.py) merges this file
-        # with tracks itself and would otherwise get artist_x/artist_y column name clashes.
         top_k_df = top_k_df[['user_id', 'item_id', 'rank', 'score']]
         top_k_df.to_csv(
                     EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_top_k.tsv', header=True,
@@ -248,14 +242,6 @@ def do_single_loop(
             EXPERIMENTS_FOLDER / dataset_name / 'output' / f'iteration_{iteration}_top_k.tsv', header=True,
             sep='\t', index=False)
 
-    # Compute and save per-user NDCG@k, matching RecBole's internal evaluation pool.
-    # NDCG cannot be computed from `top_k_df` above: that ranking is built from
-    # get_recbole_scores() (masked with test_data), which excludes ALL previously-seen
-    # items -- including validation items -- so validation items could never appear in it
-    # and NDCG would always be 0. Instead, use get_recbole_eval_scores() (masked with
-    # valid_data only), which leaves validation items visible/rankable. When PP is enabled,
-    # that eval ranking must go through the same post-processing re-ranking before scoring,
-    # so NDCG reflects what would actually be recommended.
     if PP:
         eval_scores = get_recbole_eval_scores(model, dataset, valid_data, config)
         eval_top_k_df = compute_top_k_scores(eval_scores, k=100, orig_user_ids=orig_user_ids)
