@@ -40,6 +40,7 @@ Send a POST request with parameters:
 ```
 
 `pp` enables fairness-aware post-processing re-ranking. 
+
 `pp_dimension` is `country`,  `gender`,  `language` or  `popularity_bin`;
 `pp_l` is the trade-off parameter between relevance and fairness; 
 `pp_target_distribution` is `interactions` or `catalog`; 
