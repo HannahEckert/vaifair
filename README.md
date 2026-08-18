@@ -101,3 +101,10 @@ curl https://vista-be.test.cp.jku.at/runs/{job_id}
 ```
 
 Replace `{job_id}` with the ID from the POST response.
+
+# Appendix
+
+The simulations used in both the usage scenario and the expert study of the paper were conducted using the default configuration of the hosted interface. These default settings are as follows. 
+The recommender system uses a matrix factorization architecture trained with BPR loss and an embedding size of 256. Each simulation spans 15 iterations, with the recommender system trained for 20 epochs per iteration and initialized from the weights of the previous iteration. The training and evaluation batch sizes are both set to 2048.
+A random seed of 42 was used to ensure reproducibility.
+The recommender system is trained on a subset of the LFM-2b dataset. We construct this subset by restricting the data to interactions from 2019 and filtering users and artists based on the availability of the attributes used in our analysis. We then randomly sample 5,000 artists and retain the corresponding songs, users, and interactions to form the final dataset. 
