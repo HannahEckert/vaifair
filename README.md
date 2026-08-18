@@ -1,4 +1,4 @@
-# VA4RecSys API
+# vaifair API
 
 ## Requirements
 
