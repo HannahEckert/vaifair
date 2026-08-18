@@ -1,4 +1,6 @@
-# vaifair API
+# VAIFAiR Backend
+
+This repository contains the source code for the VAIFAiR backend. The instructions below describe how to run the backend as an API. To run the simulation directly from Python instead, execute run_loop.py using the same arguments as those provided in the POST request.
 
 ## Requirements
 
