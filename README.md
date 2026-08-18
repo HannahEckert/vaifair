@@ -38,15 +38,15 @@ Send a POST request with parameters:
     "pp_seed": 42
 }
 ```
-"n" are the number of iterations in the simulation
+`n` are the number of iterations in the simulation
 
-"dataset" is the dataset used for the simulation run. Give new dataset in the experiments folder.
+`dataset` is the dataset used for the simulation run. Give new dataset in the experiments folder.
 
-"choice_model" ist the user choice model. Can be "consume_all" or "random"
+`choice_model` ist the user choice model. Can be `consume_all` or `random`
 
-"config" is the recbole config file where additional training details "such as embedding size, batch size, .. ) can be fixed. Give new config file directly in teh main folder
+`config` is the recbole config file where additional training details "such as embedding size, batch size, .. ) can be fixed. Give new config file directly in teh main folder
 
-"artist_to_exclude" give a list of artists you want to exclude in the simulation
+`artist_to_exclude` give a list of artists you want to exclude in the simulation
 
 `pp` enables fairness-aware post-processing re-ranking. 
 
